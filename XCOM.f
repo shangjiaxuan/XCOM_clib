@@ -33,6 +33,68 @@ C
      6 PRAT(ME),PREL(ME),AT(ME),ATNC(ME),EN(ME),ENL(ME),EAD(MEA),
      7 IDG(14),EDGEN(14),ADG(14),EDGE(94),ALAB(ME),X(MEB,8),            SMS
      8 ENG(35,14),ENGL(35),PHCL(35),KMX(14)
+C       IND         -> stringfied 1 to 100
+
+C       NF          -> restult units, integer
+C       SUB         -> substance string
+
+C       MEA         -> maximum number of additional energy
+C       JENG        -> number of additional energy, max 1200
+C       EAD         -> additional energies
+
+C       NEGO        -> output format, 1: Standard energy grid only 2: Standard grid plus additional energies 3: Additional energies only
+
+C       PSOR        -> constant string that indicates hard disk data files
+C       JBEG/JEND   -> trimed filename start end...
+
+
+C       ENB         -> default energies to compute
+C       EN          -> energies to compute
+C       NENG        -> number of energies to compute
+C       KZ          -> flag energy request source, -1 if user, -2 if center of shell?, positive if shell
+C       KM          -> index of enb, 0 otherwise
+C       EAD         -> additional energies to compute
+C       JENG        -> number of additional energies
+C       JZ          -> flag energy request source, negative if user, positive if shell
+C       JM          -> index of enb, 0 otherwise
+C       EDGEN       -> shell energies (added to to-compute)
+C       MAXEDG      -> shell count taken account
+C       LZ          -> flag energy request source, negative if user, positive if shell
+C       LM          -> index of enb, 0 otherwise
+C       ADG         -> shell ascii names
+C       ALAB        -> output shell name (empty most of the time)
+C       JDG         -> indexes for energies not in ENB
+C       LEN         -> index to jump to go to next energy not in ENB
+
+C       KMAX        -> number of elements
+C       NZ          -> array of element Zs
+C       WEIGHT      -> elements' portion
+C       ATWTS       -> atomic weights
+
+C       E           -> input energies
+C       SCATCO      -> input coherent scattering
+C       SCATIN      -> input incoherent scattering
+C       PHOT        -> input photo-electric absorption
+C       PAIRAT      -> input pair-production (nuclear field)
+C       PAIREL      -> input pair-production (electron field)
+C       IDG         -> index of shell energy in input table
+C       LAX         -> count of shell portions
+C       KMX         -> count of energy points for each shell
+C       ENG         -> shell absorption energy point
+C       PHC         -> absorption at ENG
+
+C       AFIT        -> cubic spline fit A
+C       BFIT        -> cubic spline fit B
+C       CFIT        -> cubic spline fit C
+C       DFIT        -> cubic spline fit D
+
+C       SCTCO       -> coherent scattering result
+C       SCTIN       -> incoherent scattering result
+C       PHT         -> photo-electric absorption result
+C       PRAT        -> pair-production (nuclear field) result
+C       PREL        -> pair-production (electron field) result
+C       AT          -> total attenuation with scatter result
+C       ATNC        -> total attenuation no coherent scatter result
       DATA  NENG/80/,AVOG/0.60221367/
       DATA EPAIR1/1.022007E+06/,EPAIR2/2.044014E+06/
       INCLUDE 'ENB.DAT'
@@ -45,6 +107,7 @@ C
       PRINT *,' M.J.Berger and J.H.Hubbell, 23 June 1999'               SMS
       PRINT 10
       CALL SPEC(SUB,NF,KMAX,NZ,WEIGHT,JENG,EAD,NEGO,PSOR)
+C       trim spaces
       DO 11 J=1,30
       IF(PSOR(J:J).NE.' ') GO TO 12
    11 CONTINUE
@@ -53,6 +116,8 @@ C
       IF(PSOR(J:J).NE.' ') GO TO 14
    13 CONTINUE
    14 JFIN=J
+
+C       gather energies to compute
       GO TO (60,30,15),NEGO
    15 NENG=JENG
       DO 20 N=1,NENG
@@ -75,6 +140,7 @@ C
       EN(N)=ENB(N)
       KZ(N)=0
    70 KM(N)=N
+C       read shell energies and push into to-compute       
    75 DO 110 K=1,KMAX
       KV=NZ(K)
       INPUT=PSOR(JBEG:JFIN)//IND(KV)
@@ -95,6 +161,8 @@ C
       CALL MERGE(EN,KZ,KM,NENG,EDGEN,LZ,LM,MAXEDG)
   100 CLOSE (UNIT=7)
   110 CONTINUE
+
+C       add a point at center between same element shell peaks within same normal interval
       KOUNT=0                                                           SMS
       IF(KZ(2))130,130,120
   120 KOUNT=KOUNT+1
@@ -115,6 +183,8 @@ C
       JZ(J)=-2
   170 JM(J)=0
       CALL MERGE(EN,KZ,KM,NENG,EAD,JZ,JM,KOUNT)
+
+C   populate JDG and LEN
   180 MX=0
       DO 200 N=1,NENG
       IF(KZ(N))200,200,190
@@ -130,6 +200,8 @@ C
       DO 210 M=2,MX
   210 LEN(M)=JDG(M)-JDG(M-1)+1
       LEN(MMAX)=NENG-JDG(MXED)+1
+
+C       loop throgh energies to compute
   220 DO 230 N=1,NENG
       ENL(N)=LOG(EN(N))
       SCTCO(N)=0.0
@@ -137,6 +209,7 @@ C
       PHT(N)=0.0
       PRAT(N)=0.0
   230 PREL(N)=0.0
+C       sum up consitituent elements for given energy
       DO 610 K=1,KMAX
       KV=NZ(K)
       INPUT=PSOR(JBEG:JFIN)//IND(KV)
@@ -170,6 +243,8 @@ C
       READ (7,*) (PHC(I,L),I=1,IMAX)
   270 CONTINUE
   280 CLOSE (UNIT=7)
+      
+C     fast path if no need to interpolate
       IF(MAXEDG)290,290,310
   290 DO 300 M=1,MAXE 
       SATCO(M)=SCATCO(M)
@@ -179,6 +254,8 @@ C
       PAIRT(M)=PAIRAT(M)
   300 PAIRL(M)=PAIREL(M)
       GO TO 395 
+
+C       copy edge data to end of array, init PDIF
   310 IRV=MAXEDG
       DO 325 I=1,MAXEDG 
       IG=IDG(I) 
@@ -191,6 +268,9 @@ C
       PAIRL(IP)=PAIREL(IG)
       EDGE(IP)=ADG(IRV) 
   325 IRV=IRV-1 
+
+C       copy non-edge data to first 80 elements
+C       non-edge means edge and the one before edge
       MB=0
       DO 340 M=1,MAXE 
       DO 335 I=1,MAXEDG 
@@ -205,6 +285,8 @@ C
       PAIRT(MB)=PAIRAT(M) 
       PAIRL(MB)=PAIREL(M) 
   340 CONTINUE
+
+C       remove one before edge data of input
       MS=0
       DO 360 M=1,MAXE 
       DO 350 I=1,MAXEDG 
@@ -218,6 +300,8 @@ C
       PAIRAT(MS)=PAIRAT(M)
       PAIREL(MS)=PAIREL(M)
   360 CONTINUE
+
+C       reverse the order of the non-edge of input
       MAXE=MS
   395 CALL REV(MAXE,E)
       CALL REV(MAXE,SCATCO) 
@@ -225,6 +309,9 @@ C
       CALL REV(MAXE,PHOT)
       CALL REV(MAXE,PAIRAT) 
       CALL REV(MAXE,PAIREL) 
+
+C       calculate pair-production for high enough energy
+C       fix coordinate to log(f/(x-u)^3)
       E(51)=EPAIR2
       E(55)=EPAIR1
       DO 420 M=1,54 
@@ -235,17 +322,23 @@ C
       TERM=(E(M)-EPAIR2)/E(M) 
   425 PR2(M)=LOG(PAIREL(M)/(TERM**3)) 
       PR2(51)=3.006275*PR2(50)-2.577757*PR2(49)+0.571482*PR2(48)
+C       fix other coordinates to log-log
       DO 430 M=1,MAXE 
       E(M)=LOG(E(M))
       SCATCO(M)=LOG(SCATCO(M))
       SCATIN(M)=LOG(SCATIN(M))
   430 PHOT(M)=LOG(PHOT(M))
+
+C       portion of current element
       GO TO (436,436,437), NF
   436 FRAC=1.0
       GO TO 438
   437 FRAC=AVOG*WEIGHT(K)/ATWT
+
+C       highest known shell energy
   438 ECUT=0.0
       IF (MAXEDG.GT.0) ECUT=EDGEN(MAXEDG)
+C       quick path for no edge, no extra
       IF(NENG-80)460,440,460
   440 IF (NEGO.EQ.3) GO TO 460                                          SMS
       DO 450 N=1,NENG
@@ -255,13 +348,18 @@ C
       PRAT(N)=PRAT(N)+FRAC*PAIRT(N)
   450 PREL(N)=PREL(N)+FRAC*PAIRL(N)
       GO TO 610
+C       calculation start, do for each known energy
   460 IMP=1
       DO 600 N=1,NENG
       IF(KZ(N))500,490,470
   470 IF(KZ(N)-IZ)500,480,500 
+
+C         basic energy composition mode
+C         if edge
   480 NN=KM(N)
       PHDIF(N)=FRAC*PDIF(NN)
       ALAB(N)=EDGE(NN)
+C         end edge
   490 NN=KM(N)
       SCTCO(N)=SCTCO(N)+FRAC*SATCO(NN)
       SCTIN(N)=SCTIN(N)+FRAC*SATIN(NN)
@@ -269,8 +367,10 @@ C
       PRAT(N)=PRAT(N)+FRAC*PAIRT(NN)
       PREL(N)=PREL(N)+FRAC*PAIRL(NN)
       GO TO 600
+C      interpolation mode
   500 T=EN(N)
       TL=ENL(N)
+C         scatters
       CALL SCOF(E,SCATCO,MAXE,AFIT,BFIT,CFIT,DFIT)
       CALL BSPOL(TL,E,AFIT,BFIT,CFIT,DFIT,MAXE,RES)
       SCTCO(N)=SCTCO(N)+FRAC*EXP(RES)
@@ -278,26 +378,33 @@ C
       CALL BSPOL(TL,E,AFIT,BFIT,CFIT,DFIT,MAXE,RES)
       SCTIN(N)=SCTIN(N)+FRAC*EXP(RES)
       IF(T-EPAIR1)530,530,510 
+C       pair-production1
   510 TERM=(T-EPAIR1)/T
       CALL SCOF(E,PR1,55,AFIT,BFIT,CFIT,DFIT)
       CALL BSPOL(TL,E,AFIT,BFIT,CFIT,DFIT,55,RES) 
       PRAT(N)=PRAT(N)+FRAC*(TERM**3)*EXP(RES)
       IF(T-EPAIR2)530,530,520 
   520 TERM=(T-EPAIR2)/T
+C       pair-production2
       CALL SCOF(E,PR2,51,AFIT,BFIT,CFIT,DFIT)
       CALL BSPOL(TL,E,AFIT,BFIT,CFIT,DFIT,51,RES) 
       PREL(N)=PREL(N)+FRAC*(TERM**3)*EXP(RES)
   530 IF(MAXEDG)540,540,550
+C       no-shell photoelectric
   540 CALL SCOF(E,PHOT,MAXE,AFIT,BFIT,CFIT,DFIT)
       CALL BSPOL(TL,E,AFIT,BFIT,CFIT,DFIT,MAXE,RES)
       PHT(N)=PHT(N)+FRAC*EXP(RES)
       GO TO 600
+C       photoelectric with shell
   550 IF(T-ECUT)570,560,560
   560 CALL SCOF(E,PHOT,MAXK,AFIT,BFIT,CFIT,DFIT)
       CALL BSPOL(TL,E,AFIT,BFIT,CFIT,DFIT,MAXK,RES)
       PHT(N)=PHT(N)+FRAC*EXP(RES)
       GO TO 600
+C       smaller than highest known energy shell
+C       absorption based on electron activation
   570 IF(T-EDGEN(IMP))590,580,580
+C       find the shell energy just larger than E
   580 IMP=IMP+1
       GO TO 570
   590 MAXX=KMX(IMP)
@@ -532,7 +639,7 @@ C     2 Apr 87. Reads various input parameters.
       CHARACTER*72 FORMLA,FRM(100),SUBST
       CHARACTER*30 ENGIN,SOURCE
       CHARACTER  RESP*1                                                 SMS
-      PARAMETER (MEA=1200)                                              SMS
+      PARAMETER (MEA=600)                                               SMS
       DIMENSION JZ(100),WT(100),JZ1(100),WT1(100),LH(100),WATE(100),
      1 FRAC(100),EADD(MEA)
       NFORM=3
@@ -727,67 +834,102 @@ C     24 Mar 87. Reads element symbols or chemical formulas.
       CHARACTER*72,W
       DIMENSION MASH1(26),MASH2(418),IC(72),K(72),JZ(100),NZ(100),
      1 MS(100),ATWTS(100),WT(100)
+C         Single letter Z starting with A
       INCLUDE 'HASH1.DAT'
       INCLUDE 'HASH2.DAT'
       INCLUDE 'ATWTS.DAT'
+C         classify invalid, spcae, number, uppercase, lowercase
       DO 116 L=1,72
       IC(L)=ICHAR(W(L:L))
+C         32 is space, less than 32 is control char
       IF(IC(L)-32)101,102,103
+C         is control char
   101 K(L)=1
       GO TO 116
+C         is space
   102 K(L)=2
       GO TO 116
+C         else (text char or del)
   103 IF(IC(L)-48)104,105,105
+C         punctuation
   104 K(L)=1
       GO TO 116
+C         else
   105 IF(IC(L)-58)106,107,107
+C         numeric 0-9
   106 K(L)=3
       GO TO 116
+C         else
   107 IF(IC(L)-65)108,109,109
+C         :;<=>?@
   108 K(L)=1
       GO TO 116
   109 IF(IC(L)-91)110,111,111
+C         upper case letter
   110 K(L)=4
       GO TO 116
   111 IF(IC(L)-97)112,113,113
+C         [\]^_`
   112 K(L)=1
       GO TO 116
   113 IF(IC(L)-123)114,115,115
+C         lower case letter
   114 K(L)=5
       GO TO 116
   115 K(L)=1
   116 CONTINUE
+      
       L=1
       M=0
+C         ignore space and invalid char
   117 IF(K(L)-2)118,118,119
   118 L=L+1
       GO TO 117
+
+C         loop through chars
   119 LMIN=L
   120 KG=K(L)
       IF(L-LMIN)130,130,140
+C         160 if upper case, else stop 1
   130 GO TO (150,150,150,160,150), KG
+C         160 if upper case, 470 if numeric, else stop 1
   140 GO TO (150,470,150,160,150), KG
   150 STOP 1
+C         peek next char
   160 KG1=K(L+1)
+C         240 if lowercase, 180 if valid otherwise, invalid stop 2
       GO TO (170,180,180,180,240), KG1
   170 STOP 2
+C         index of char starting with A
   180 ICC=IC(L)-64
+C         single upper case letter Z
       JT=MASH1(ICC)
+C         found->200, not found stop
       IF(JT)190,190,200
   190 STOP 3
+
   200 M=M+1
       JZ(M)=JT
+C         check next token, stop if invalid
       GO TO (170,210,230,220,240), KG1
+C         space
   210 NZ(M)=1
       GO TO 470
+C         upper case is next element
   220 NZ(M)=1
       L=L+1
       GO TO 120
+C         number of current element
   230 IN=L+1
       GO TO 390
+      
+C         lower case, check element
   240 ICC=9*IC(L+1)-10*IC(L)+9
+C         stop 4 if < 1
       IF(ICC-1)310,250,250
+C         stop 4 if > 418
   250 IF(ICC-418)260,260,310
+C         stop 4 if < 1
   260 IF(ICC-208)300,270,300
   270 M=M+1
       IF(IC(L)-71)290,280,290
@@ -796,28 +938,43 @@ C     24 Mar 87. Reads element symbols or chemical formulas.
   290 JZ(M)=84
       GO TO 330
   300 JT=MASH2(ICC)
+
+C         check, stop 4 if not element found 
       IF(JT)310,310,320
   310 STOP 4
   320 M=M+1
       JZ(M)=JT
+C         peek next for two letter element
   330 KG2=K(L+2)
+
+C         stop if invalid
       GO TO (340,350,380,360,370), KG2
   340 STOP 5
+C         space, end of sequence
   350 NZ(M)=1
       GO TO 470
+C         upper case, next element
   360 NZ(M)=1
       L=L+2
       GO TO 120
+C         lower case, error
   370 STOP 6
+C         number
   380 IN=L+2
+
+C         parse number  
   390 INN=IN
       IS=0
       NZ(M)=0
+
+C         space, number, letter, get sequence of consecutive numbers
   400 IF(K(INN)-3)420,410,420
   410 IS=IS+1
       MS(IS)=IC(INN)-48
       INN=INN+1
       GO TO 400
+      
+C        parse number, if number <= 0 stop 7 
   420 ISM=IS
       KFAC=1
   430 NZ(M)=NZ(M)+KFAC*MS(IS)
@@ -826,8 +983,12 @@ C     24 Mar 87. Reads element symbols or chemical formulas.
       IF(IS)440,440,430
   440 IF(NZ(M))450,450,460
   450 STOP 7
+
+C         skip to next
   460 L=IN+ISM
       GO TO 120
+
+C         done with segments, gather data, wt = mass*count portion
   470 MMAX=M
       ASUM=0.0
       DO 480 M=1,MMAX
@@ -858,7 +1019,7 @@ C     16 Jun 99. Sorts into monotonically increasing order.             SMS
 
       SUBROUTINE MERGE(E1,K1,L1,MMAX,E2,K2,L2,NMAX)
 C     24 Mar 87. Merges energy lists.
-      DIMENSION E1(1),K1(1),L1(1),E2(1),K2(1),L2(1)
+      DIMENSION E1(*),K1(*),L1(*),E2(*),K2(*),L2(*)
       DATA MLIM/200/
       DO 50 N=1,NMAX
       M=2
@@ -897,7 +1058,7 @@ C     24 Mar 87. Reverses the order of lists.
       SUBROUTINE SCOF(X,F,NMAX,A,B,C,D) 
 C     22 Feb 83. Fits F as a function of X, and calculates 
 C                cubic spline coefficients A,B,C and D.
-      DIMENSION X(1),F(1),A(1),B(1),C(1),D(1) 
+      DIMENSION X(*),F(*),A(*),B(*),C(*),D(*) 
       M1=2
       M2=NMAX-1 
       S=0.0 
@@ -932,7 +1093,7 @@ C                cubic spline coefficients A,B,C and D.
       SUBROUTINE BSPOL(S,X,A,B,C,D,N,G)
 C     22 Feb 83. Evaluates cubic spline as function of S, to obtain
 C                fitted result G.
-      DIMENSION X(1),A(1),B(1),C(1),D(1)
+      DIMENSION X(*),A(*),B(*),C(*),D(*)
       IF (X(1).GT.X(N)) GO TO 10
       IDIR=0
       MLB=0 
@@ -965,7 +1126,7 @@ C                fitted result G.
        
       SUBROUTINE BLIN(S,X,Y,N,T)
 C     12 Apr 87. Linear interpolation routine
-      DIMENSION X(1000),Y(1000)
+      DIMENSION X(*),Y(*)
       IF (X(1).GT.X(N)) GO TO 10
       IDIR=0
       MLB=0 
