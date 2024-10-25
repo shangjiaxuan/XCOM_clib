@@ -7,6 +7,10 @@ int main()
 	int error = 0;
 	XCOM_material_info mat1;
 	FILE* normal_mat1_output = 0;
+	if(!normal_mat1_output) {
+		error = -1;
+		goto CLEANUP;
+	}
 	{
 		XCOM_material_info info_resin = {0};
 		if (!XCOM_parse_formula(&info_resin, "C6H7O2")) {
